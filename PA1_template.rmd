@@ -1,0 +1,146 @@
+---
+title: "Course project #1: Physical Activity Study"
+output:
+    html_document:
+        keep_md: True
+---
+
+
+This report will answer a few questions about the physical activity data provided in this assignment.
+
+## Load and process the data
+
+First we will load and process the data. The data has been downloaded and stored in a "Data" folder off the root directory off the R workind directory.
+
+```{r LoadData, echo=TRUE}
+library(knitr)
+
+data <- read.csv(file = "Data/activity.csv")
+data$date <- as.Date(as.character(data$date))
+```
+
+Next we will review the structure of the data
+```{r}
+str(data)
+```
+
+## 1: What is mean total number of steps taken per day?
+
+First, we will find the total steps taken each day.
+
+```{r MeanStepsByDay, echo=TRUE}
+StepsByDay <- aggregate(data$steps, list(data$date), sum)
+colnames(StepsByDay) <- c("interval", "steps")
+print(StepsByDay)
+```
+
+Next we will make a histogram of the total number of steps taken each day.
+```{r MeanStepsByDayHist, echo=TRUE}
+hist(StepsByDay$steps, main = "Histogram of Total Daily Steps", xlab = "Total Daily Steps")
+```
+
+Lastly for this question, we will calculate the mean and median of the total number of steps taken per day.
+```{r MeanStepsByDayStats, echo=TRUE}
+DailyStepsMean <- mean(StepsByDay$steps, na.rm = T)
+print(DailyStepsMean)
+DailyStepsMedian <- median(StepsByDay$steps, na.rm = T)
+print(DailyStepsMedian)
+```
+
+## 2: What is the average daily activity pattern?
+
+We will now look at the average numbers of steps by 5-minute interval across all the days in the data.
+```{r DailyActivityPlot, echo=TRUE}
+# Remove NA values then calculate average steps in each 5-minute interval.
+dataNoNA <- na.omit(data)
+StepsByInterval <- aggregate(dataNoNA$steps, list(dataNoNA$interval), mean)
+colnames(StepsByInterval) <- c("interval", "steps")
+
+# Make a time series plot of average steps in each 5-minute interval.
+plot(StepsByInterval, type = "l", main = "Average steps per 5-minute interval", xlab = "5-Minute Interval")
+```
+
+Now we want to know which 5-minute interval has on-average the most number of steps.
+```{r DailyActivityPlotMax, echo=TRUE}
+StepsByInterval[which.max(StepsByInterval$steps), ]
+```
+
+## 3: Imputing missing values
+
+Let's take a closer look at missing values in the data set, starting with the number of 5-minute intervals that are missing values.
+
+```{r ImputingValueCount, echo=TRUE}
+NAIntervals <- sum(is.na(data$steps))
+```
+
+There are `r NAIntervals` 5-minute intervals missing a value.
+
+Next we will impute values for the missing data by inserting the mean steps by interval for the intervals that are currently missing data.
+```{r ImputeMeanByInterval, echo=TRUE}
+colnames(StepsByInterval) <- c("interval", "steps")
+dataImputed <- merge(data, StepsByInterval, by = "interval", suffixes = c(".data", ".StepsByInterval"))
+colnames(dataImputed) <- c("interval", "steps", "date", "AvgStepsByInterval")
+dataImputed$steps <- ifelse(is.na(dataImputed$steps), dataImputed$AvgStepsByInterval, dataImputed$steps)
+```
+
+```{r MeanStepsByDayImputed, echo=TRUE}
+StepsByDayImputed <- aggregate(dataImputed$steps, list(dataImputed$date), sum)
+colnames(StepsByDayImputed) <- c("interval", "steps")
+print(StepsByDayImputed)
+```
+
+With the imputed data set, we will now make a histogram of the total number of steps taken each day.
+```{r MeanStepsByDayHistImputed, echo=TRUE}
+hist(StepsByDayImputed$steps, main = "Histogram of Total Daily Steps (Imputed)", xlab = "Total Daily Steps (Imputed)")
+```
+
+Lastly for this question, we will calculate the mean and median of the total number of steps taken per day using this imputed data set.
+```{r MeanStepsByDayStatsImputed, echo=TRUE}
+DailyStepsMeanImputed <- mean(StepsByDayImputed$steps, na.rm = T)
+print(DailyStepsMeanImputed)
+DailyStepsMedianImputed <- median(StepsByDayImputed$steps, na.rm = T)
+print(DailyStepsMedianImputed)
+```
+
+Question: Do these values differ from the values calculated using non-imputed data?
+There is very little variance with the mean being the same and the median varying by a fraction of a percentage.
+
+Question: What is the impact of imputing missing data on the estimates of the total daily number of steps?
+The range of total daily steps remains the same, but there are now more days in the 10,000 - 15,000 range as shown by the increased peak in the histogram.
+
+## 4: Are there differences in activity patterns between weekdays and weekends?
+
+To answer this question we must first introduce "weekday" and "weekend" factors into the data. We will continue with the imputed data.
+```{r DayOfWeek, echo=TRUE}
+dataImputed$Day <- weekdays(dataImputed$date, abbreviate = T)
+dataImputed$Day <- ifelse(dataImputed$Day == "Sat" | dataImputed$Day == "Sun", "Weekend", "Weekday")
+```
+
+Lastly, we will look at the average numbers of steps by 5-minute interval across weekends and weekdays to see if there appers to be a significant difference.
+```{r DayOfWeekPlot, echo=TRUE}
+# Calculate average steps in each 5-minute interval for weekdays and weekends.
+dataImputedWeekday <- subset(dataImputed, Day == "Weekday")
+StepsByIntervalImputedWeekday <- aggregate(dataImputedWeekday$steps, list(dataImputedWeekday$interval), mean)
+
+dataImputedWeekend <- subset(dataImputed, Day == "Weekend")
+StepsByIntervalImputedWeekend <- aggregate(dataImputedWeekend$steps, list(dataImputedWeekend$interval), mean)
+
+colnames(StepsByIntervalImputedWeekday) <- c("interval", "steps")
+colnames(StepsByIntervalImputedWeekend) <- c("interval", "steps")
+
+# Make time series plots of average steps in each 5-minute interval for weekends and weedays
+# par(mfrow = c(2, 1))
+# plot(StepsByIntervalImputedWeekday, type = "l", main = "Average steps per 5-minute interval", xlab = "5-Minute Interval")
+# plot(StepsByIntervalImputedWeekend, type = "l", main = "Average steps per 5-minute interval", xlab = "5-Minute Interval")
+
+library(ggplot2)
+library(gridExtra)
+
+WeekdayPlot <- ggplot(StepsByIntervalImputedWeekday, aes(interval, steps)) + geom_line(color = "blue") + ggtitle("Weekday") + theme(axis.title = element_blank(), plot.title = element_text(hjust = 0.5))
+
+WeekendPlot <- ggplot(StepsByIntervalImputedWeekend, aes(interval, steps)) + geom_line(color = "blue") + ggtitle("Weekend") + theme(axis.title = element_blank(), plot.title = element_text(hjust = 0.5))
+
+grid.arrange(WeekendPlot, WeekdayPlot, nrow = 2, bottom = "5-Minute Interval", left = "Steps")
+
+```
+
